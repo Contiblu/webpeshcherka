@@ -12,6 +12,47 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' })); // Увеличил лимит для картинок из студии
 
+const yaml = require("js-yaml"); // npm install js-yaml
+
+app.post("/api/product", async (req, res) => {
+  const { category, product } = req.body;
+
+  try {
+    // 1. Получаем текущий файл категории
+    const url = `https://api.github.com/repos/${REPO}/contents/_data/merch/${category}.yml`;
+
+    const file = await axios.get(url, {
+      headers: { Authorization: `token ${GITHUB_TOKEN}` }
+    });
+
+    const content = Buffer.from(file.data.content, 'base64').toString();
+    let data = yaml.load(content) || {};
+
+    if (!data.merch) data.merch = [];
+
+    // 2. Добавляем товар
+    data.merch.push(product);
+
+    const newContent = Buffer.from(yaml.dump(data)).toString("base64");
+
+    // 3. Обновляем файл
+    await axios.put(url, {
+      message: `Add product ${product.title}`,
+      content: newContent,
+      sha: file.data.sha,
+      branch: "main"
+    }, {
+      headers: { Authorization: `token ${GITHUB_TOKEN}` }
+    });
+
+    res.send({ ok: true });
+
+  } catch (err) {
+    console.error(err.message);
+    res.status(500).send("Ошибка");
+  }
+});
+
 // --- ТРАНСПОРТ ДЛЯ 1С (Пример отправки) ---
 async function sendTo1C(orderData) {
     try {
