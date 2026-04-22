@@ -12,6 +12,15 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json({ limit: '10mb' })); // Увеличил лимит для картинок из студии
 
+const ADMIN_KEY = "12345";
+
+app.use("/api", (req, res, next) => {
+  if (req.headers["x-key"] !== ADMIN_KEY) {
+    return res.status(403).send("Нет доступа");
+  }
+  next();
+});
+
 const yaml = require("js-yaml"); // npm install js-yaml
 
 app.post("/api/product", async (req, res) => {
