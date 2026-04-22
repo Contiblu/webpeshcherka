@@ -1,0 +1,22 @@
+{
+  "orderId": 1776883050223,
+  "items": [
+    {
+      "id": "int_0005",
+      "name": "Шанс",
+      "price": "51000",
+      "image": "/assets/images/merch/int_0005.jpg",
+      "qty": 1
+    },
+    {
+      "id": "bed_0003",
+      "name": "Фиолетовый",
+      "price": "33000",
+      "image": "/assets/images/merch/bed_0003.jpg",
+      "qty": 1
+    }
+  ],
+  "total": 84000,
+  "date": "2026-04-22T18:37:30.223Z",
+  "status": "Новый"
+}
