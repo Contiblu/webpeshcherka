@@ -1,0 +1,22 @@
+{
+  "orderId": 1776832254735,
+  "items": [
+    {
+      "id": "bag_0001",
+      "name": "Сумка Хаски",
+      "price": "50000",
+      "image": "/assets/images/accessories/bag_0001.jpg",
+      "qty": 1
+    },
+    {
+      "id": "bag_0002",
+      "name": "Сумка со львом",
+      "price": "100000",
+      "image": "/assets/images/merch/bag_0002.jpg",
+      "qty": 1
+    }
+  ],
+  "total": 150000,
+  "date": "2026-04-22T04:30:54.735Z",
+  "status": "Новый"
+}
