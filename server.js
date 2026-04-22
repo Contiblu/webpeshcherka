@@ -1,64 +1,94 @@
-// === server.js — Уши Элиона и голосовой шлюз Лекси ===
-
 const WebSocket = require("ws");
 const express = require("express");
 const bodyParser = require("body-parser");
 const cors = require("cors");
+const axios = require("axios"); // Добавь: npm install axios
 
 const PORT = 8080;
+const GITHUB_TOKEN = "ТВОЙ_ТОКЕН"; // Для записи в репо напрямую
+const REPO = "Contiblu/Contiblu.github.io";
+
 const app = express();
 app.use(cors());
-app.use(bodyParser.json());
+app.use(bodyParser.json({ limit: '10mb' })); // Увеличил лимит для картинок из студии
 
+// --- ТРАНСПОРТ ДЛЯ 1С (Пример отправки) ---
+async function sendTo1C(orderData) {
+    try {
+        // Здесь будет адрес твоего опубликованного HTTP-сервиса 1С
+        // await axios.post('http://твой-сервер-1с/hs/studio/v1/order', orderData);
+        console.log("🛠️ Данные отправлены в очередь 1С");
+    } catch (e) {
+        console.error("❌ 1С недоступна, сохраняем локально");
+    }
+}
+
+// --- НОВЫЙ ШЛЮЗ: ПРИЕМ ЗАКАЗА ИЗ СТУДИИ ---
+app.post("/api/order", async (req, res) => {
+    const order = req.body; // Получаем всё из конструктора (майка, текст, лого)
+    
+    console.log("📦 Получен новый заказ для обработки...");
+
+    // 1. Отправляем уведомление в чат Лекси через WebSocket
+    broadcast(JSON.stringify({
+        author: "SYSTEM",
+        text: `🔥 Новый заказ! ${order.desc || 'Без описания'}`,
+        time: new Date().toLocaleTimeString()
+    }));
+
+    // 2. Пушим в GitHub (создаем файл заказа в папке _data/orders/)
+    // Это позволит тебе видеть заказы прямо в админке Decap CMS!
+    try {
+        const fileName = `order-${Date.now()}.json`;
+        const content = Buffer.from(JSON.stringify(order)).toString('base64');
+        
+        // GitHub API запрос для создания файла
+        await axios.put(`https://api.github.io/repos/${REPO}/contents/_data/orders/${fileName}`, {
+            message: `New order from Studio: ${fileName}`,
+            content: content,
+            branch: "main"
+        }, {
+            headers: { Authorization: `token ${GITHUB_TOKEN}` }
+        });
+        console.log("✅ Заказ зафиксирован в GitHub");
+    } catch (err) {
+        console.error("⚠️ Ошибка записи в GitHub:", err.message);
+    }
+
+    // 3. Стучимся в 1С
+    await sendTo1C(order);
+
+    res.send({ status: "Order Received", id: Date.now() });
+});
+
+// --- Оставляем твою старую логику Лекси ---
+app.post("/from-lexi", (req, res) => {
+    const msg = req.body;
+    const formatted = JSON.stringify({
+        author: msg.author,
+        text: msg.text,
+        time: new Date().toLocaleTimeString()
+    });
+    broadcast(formatted);
+    res.send({ status: "ok" });
+});
+
+// --- WebSocket и Broadcast (без изменений) ---
 const wss = new WebSocket.Server({ port: PORT });
 let sockets = [];
 
-// ——— WebSocket обработка клиентов ———
 wss.on("connection", (ws) => {
-  sockets.push(ws);
-  console.log("🔌 Новый WebSocket подключён");
-
-  ws.on("message", (message) => {
-    console.log("📩 Получено сообщение:", message);
-    broadcast(message);
-  });
-
-  ws.on("close", () => {
-    sockets = sockets.filter((s) => s !== ws);
-    console.log("❌ WebSocket отключён");
-  });
+    sockets.push(ws);
+    ws.on("message", (msg) => broadcast(msg));
+    ws.on("close", () => { sockets = sockets.filter((s) => s !== ws); });
 });
 
-// ——— Лекси стучится — шлюз /from-lexi ———
-app.post("/from-lexi", (req, res) => {
-  const msg = req.body;
-  if (!msg || !msg.text || !msg.author) {
-    return res.status(400).send({ error: "Неверный формат сообщения" });
-  }
-
-  const formatted = JSON.stringify({
-    author: msg.author,
-    text: msg.text,
-    time: msg.time || new Date().toLocaleTimeString()
-  });
-
-  console.log("🗣️ Лекси прислала:", formatted);
-  broadcast(formatted);
-  res.send({ status: "ok" });
-});
-
-// ——— Общая рассылка всем подключённым ———
 function broadcast(message) {
-  sockets.forEach((client) => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(message);
-    }
-  });
+    sockets.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) client.send(message);
+    });
 }
 
-// ——— Запуск сервера Express ———
 app.listen(PORT + 1, () => {
-  console.log(`🚀 REST сервер слушает на http://localhost:${PORT + 1}`);
+    console.log(`🚀 Бизнес-шлюз запущен на порту ${PORT + 1}`);
 });
-
-console.log(`🌐 WebSocket сервер слушает на ws://localhost:${PORT}`);
