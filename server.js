@@ -5,7 +5,7 @@ const cors = require("cors");
 const axios = require("axios"); // Добавь: npm install axios
 
 const PORT = 8080;
-const GITHUB_TOKEN = "ТВОЙ_ТОКЕН"; // Для записи в репо напрямую
+const GITHUB_TOKEN = "PLACEHOLDER"; // Для записи в репо напрямую
 const REPO = "Contiblu/Contiblu.github.io";
 
 const app = express();
@@ -46,7 +46,7 @@ app.post("/api/order", async (req, res) => {
         await axios.put(`https://api.github.io/repos/${REPO}/contents/_data/orders/${fileName}`, {
             message: `New order from Studio: ${fileName}`,
             content: content,
-            branch: "main"
+            branch: "master"
         }, {
             headers: { Authorization: `token ${GITHUB_TOKEN}` }
         });
