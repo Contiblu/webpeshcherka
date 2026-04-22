@@ -53,6 +53,28 @@ app.post("/api/product", async (req, res) => {
   }
 });
 
+app.post("/api/upload", async (req, res) => {
+  const { file, name, category } = req.body;
+
+  const content = file.replace(/^data:image\/\w+;base64,/, "");
+
+  const path = `assets/images/merch/${category}/${name}`;
+
+  await axios.put(
+    `https://api.github.com/repos/${REPO}/contents/${path}`,
+    {
+      message: `Upload image ${name}`,
+      content: content,
+      branch: "main"
+    },
+    {
+      headers: { Authorization: `token ${GITHUB_TOKEN}` }
+    }
+  );
+
+  res.send({ url: `/${path}` });
+});
+
 // --- ТРАНСПОРТ ДЛЯ 1С (Пример отправки) ---
 async function sendTo1C(orderData) {
     try {
