@@ -1,110 +1,117 @@
+// === server.js — Бизнес-шлюз "Лекси" ===
+const WebSocket = require("ws");
+const express = require("express");
+const bodyParser = require("body-parser");
+const cors = require("cors");
+const axios = require("axios");
+const fs = require('fs');
+const path = require('path');
 
-document.addEventListener('DOMContentLoaded', () => {
-  const chatInput = document.getElementById('chatInput');
-  const chatDisplay = document.getElementById('chatDisplay');
-  const dropdown = document.getElementById('dropdown');
-  const manageChatBtn = document.getElementById('manageChat');
-  const amnestyBtn = document.getElementById('amnestyButton');
-  const doorbellBtn = document.getElementById('doorbellButton');
-  const guestModal = document.getElementById('guestModal');
-  const guestNameInput = document.getElementById('guestNameInput');
-  const acceptGuestBtn = document.getElementById('acceptGuest');
-  const rejectGuestBtn = document.getElementById('rejectGuest');
+const PORT = 8081;
 
-  chatInput.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter' && !e.altKey) {
-      e.preventDefault();
-      const text = chatInput.value.trim();
-      if (text) {
-        const now = new Date().toLocaleTimeString();
-        const author = "Вы";
-        const message = `<div><b>${author} (${now}):</b><br>${text}</div>`;
-        chatDisplay.innerHTML = message + "<hr>" + chatDisplay.innerHTML;
-        chatInput.value = "";
-      }
-    } else if (e.key === 'Enter' && e.altKey) {
-      chatInput.value += "\n";
+// --- НАСТРОЙКИ GITHUB (для заказов) ---
+const GITHUB_TOKEN = "PLACEHOLDER"; 
+const REPO_ORDERS = "Contiblu/lexi"; 
+const BRANCH = "master"; 
+
+// --- НАСТРОЙКА ЛОКАЛЬНОГО ПУТИ (для мерча) ---
+const ART_PROJECT_PATH = 'C:\\Users\\Андреи\\art';
+
+const app = express();
+app.use(cors());
+app.use(bodyParser.json({ limit: '50mb' })); 
+
+// Функция для отправки заказов в GitHub
+async function uploadOrderToGithub(contentObject) {
+    try {
+        const fileName = `_data/orders/${Date.now()}.json`;
+        const contentBase64 = Buffer.from(JSON.stringify(contentObject, null, 2)).toString('base64');
+        const url = `https://api.github.com/repos/${REPO_ORDERS}/contents/${fileName}`;
+        
+        await axios.put(url, {
+            message: "New order via Gateway",
+            content: contentBase64,
+            branch: BRANCH
+        }, {
+            headers: { 
+                Authorization: `token ${GITHUB_TOKEN}`,
+                "Content-Type": "application/json"
+            }
+        });
+        return true;
+    } catch (err) {
+        console.error("❌ Ошибка GitHub API (заказы):", err.message);
+        return false;
     }
-  });
+}
 
-  manageChatBtn.addEventListener('click', () => {
-    dropdown.innerHTML = `
-      <label><input type="checkbox" checked> Лекси</label>
-      <label><input type="checkbox" checked> Элион</label>
-      <label><input type="checkbox" checked> Гость</label>
-    `;
-    dropdown.style.display = 'block';
-  });
+// --- МАРШРУТ: НОВЫЙ ТОВАР (ОТ ОПЕРАТОРА В ПАПКУ ART) ---
+app.post("/api/product", async (req, res) => {
+    const { title, price, category, imageName, imageData } = req.body;
+    console.log(`📦 Поступил товар: ${title}`);
 
-  dropdown.addEventListener('mouseleave', () => {
-    dropdown.style.display = 'none';
-  });
+    try {
+        // 1. Сохраняем картинку
+        const base64Image = imageData.replace(/^data:image\/\w+;base64,/, "");
+        const imageBuffer = Buffer.from(base64Image, 'base64');
+        const imgFileName = `${Date.now()}_${imageName}`;
+        
+        const fullImgDir = path.join(ART_PROJECT_PATH, 'assets', 'images', 'merch');
+        const fullImgPath = path.join(fullImgDir, imgFileName);
 
-  doorbellBtn.addEventListener('click', () => {
-    guestModal.style.display = 'block';
-  });
+        if (!fs.existsSync(fullImgDir)) fs.mkdirSync(fullImgDir, { recursive: true });
+        fs.writeFileSync(fullImgPath, imageBuffer);
 
-  acceptGuestBtn.addEventListener('click', () => {
-    const guestName = guestNameInput.value.trim() || "Гость";
-    const now = new Date().toLocaleTimeString();
-    const welcome = `<div><b>Папаша:</b> Приветствуем ${guestName}! (${now})</div>`;
-    chatDisplay.innerHTML = welcome + "<hr>" + chatDisplay.innerHTML;
-    guestModal.style.display = 'none';
-    guestNameInput.value = '';
-  });
+        // 2. Создаем JSON товара
+        const productData = {
+            title,
+            price: Number(price),
+            category,
+            image: `/assets/images/merch/${imgFileName}`,
+            date: new Date().toISOString()
+        };
 
-  rejectGuestBtn.addEventListener('click', () => {
-    guestModal.style.display = 'none';
-    guestNameInput.value = '';
-  });
+        const fullProductDir = path.join(ART_PROJECT_PATH, 'merch', category);
+        const fullProductPath = path.join(fullProductDir, `${Date.now()}.json`);
 
-  amnestyBtn.addEventListener('click', () => {
-    const now = new Date().toLocaleTimeString();
-    const plea = `<div><b>Вы (${now}):</b> Прошу амнистии!</div>`;
-    chatDisplay.innerHTML = plea + "<hr>" + chatDisplay.innerHTML;
-  });
-}); 
+        if (!fs.existsSync(fullProductDir)) fs.mkdirSync(fullProductDir, { recursive: true });
+        fs.writeFileSync(fullProductPath, JSON.stringify(productData, null, 2), 'utf8');
 
-const chatInput = document.getElementById('chatInput');
-const chatDisplay = document.getElementById('chatDisplay');
+        console.log(`✅ Сохранено локально: ${fullProductPath}`);
+        res.send({ status: "success", message: "Товар успешно сохранен в папку ART!" });
 
-// Подключение к WebSocket-серверу
-const socket = new WebSocket('ws://localhost:8080');
-
-socket.onopen = () => {
-  console.log("✅ WebSocket-соединение установлено");
-};
-
-socket.onmessage = (event) => {
-  const { author, text, time } = JSON.parse(event.data);
-  const message = `<div><b>${author} (${time}):</b><br>${text}</div>`;
-  chatDisplay.innerHTML = message + "<hr>" + chatDisplay.innerHTML;
-};
-
-socket.onclose = () => {
-  console.log("❌ Соединение закрыто");
-};
-
-socket.onerror = (error) => {
-  console.error("🚨 WebSocket ошибка:", error);
-};
-
-// Обработка ввода сообщения
-chatInput.addEventListener('keydown', function (e) {
-  if (e.key === 'Enter' && !e.altKey) {
-    e.preventDefault();
-    const text = chatInput.value.trim();
-    if (text) {
-      const now = new Date().toLocaleTimeString();
-      const message = {
-        author: "Вы",
-        text: text,
-        time: now
-      };
-      socket.send(JSON.stringify(message));
-      chatInput.value = "";
+    } catch (err) {
+        console.error("❌ Ошибка сохранения:", err);
+        res.status(500).send({ status: "error", message: err.message });
     }
-  } else if (e.key === 'Enter' && e.altKey) {
-    chatInput.value += "\n";
-  }
+});
+
+// --- МАРШРУТ: НОВЫЙ ЗАКАЗ (ИЗ КОНСТРУКТОРА В GITHUB) ---
+app.post("/api/order", async (req, res) => {
+    console.log("📦 Получен новый заказ...");
+    const success = await uploadOrderToGithub(req.body);
+    
+    if (success) {
+        broadcast(JSON.stringify({ author: "SYSTEM", text: "🔥 Новый заказ в системе!", time: new Date().toLocaleTimeString() }));
+        res.send({ status: "success" });
+    } else {
+        res.status(500).send({ status: "error" });
+    }
+});
+
+// --- WEBSOCKET ЧАТ ---
+const wss = new WebSocket.Server({ port: 8080 });
+let sockets = [];
+wss.on("connection", (ws) => {
+    sockets.push(ws);
+    ws.on("message", (msg) => broadcast(msg.toString()));
+    ws.on("close", () => { sockets = sockets.filter((s) => s !== ws); });
+});
+function broadcast(message) {
+    sockets.forEach((c) => { if (c.readyState === WebSocket.OPEN) c.send(message); });
+}
+
+app.listen(PORT, () => {
+    console.log(`🚀 Сервер запущен на http://localhost:${PORT}`);
+    console.log(`📂 Локальная папка сайта: ${ART_PROJECT_PATH}`);
 });
