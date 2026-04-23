@@ -1,4 +1,3 @@
-// === server.js — Финальная версия для записи в YAML ===
 const WebSocket = require("ws");
 const express = require("express");
 const bodyParser = require("body-parser");
@@ -8,42 +7,36 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = 8081;
-const ART_PROJECT_PATH = 'C:\\Users\\Андреи\\art'; // Путь к локальному репо сайта
-
-// Настройки GitHub (только для заказов)
-const GITHUB_TOKEN = "PLACEHOLDER"; 
-const REPO_ORDERS = "Contiblu/lexi"; 
-const BRANCH = "master"; 
+const ART_PROJECT_PATH = 'C:\\Users\\Андреи\\art'; 
 
 const app = express();
 app.use(cors());
-app.use(bodyParser.json({ limit: '10mb' }));
+app.use(bodyParser.json());
 
-// --- МАРШРУТ: ДОБАВЛЕНИЕ ТОВАРА В YAML ---
+// --- МАРШРУТ: ПРОСТАЯ ЗАПИСЬ В YAML ---
 app.post("/api/product", async (req, res) => {
-    const { title, price, category, imageName, description } = req.body;
-    console.log(`📝 Новая запись для YAML: ${title}`);
-
+    const { title, price, category, imagePath, description } = req.body;
+    
     try {
         const yamlFilePath = path.join(ART_PROJECT_PATH, '_data', 'merch', `${category}.yml`);
 
         if (!fs.existsSync(yamlFilePath)) {
-            return res.status(404).send({ status: "error", message: `Файл ${category}.yml не найден в _data/merch/` });
+            return res.status(404).send({ status: "error", message: `Файл ${category}.yml не найден` });
         }
 
-        // Генерируем уникальный slug на основе времени
+        // Генерация slug
         const slug = `item_${Date.now().toString().slice(-6)}`;
         
-        // Формируем блок по твоему образцу (с отступами в 2 пробела)
+        // Формируем блок СТРОГО по твоему образцу (отступы важны!)
         const newEntry = `  - slug: ${slug}
     title: "${title}"
     price: "${price}"
-    description: "${description || ''}"
-    image: /assets/images/merch/${imageName}\n`;
+    image: ${imagePath}
+    description: ${description || ''}\n`;
 
         let fileContent = fs.readFileSync(yamlFilePath, 'utf8');
 
-        // Вставляем новый товар сразу после строки "merch:"
+        // Вставляем сразу под "merch:"
         if (fileContent.includes('merch:')) {
             fileContent = fileContent.replace('merch:', `merch:\n${newEntry}`);
         } else {
@@ -52,14 +45,15 @@ app.post("/api/product", async (req, res) => {
 
         fs.writeFileSync(yamlFilePath, fileContent, 'utf8');
 
-        console.log(`✅ Запись успешно добавлена в ${category}.yml`);
-        res.send({ status: "success", message: "Товар успешно добавлен в базу витрины (YAML)!" });
+        console.log(`✅ Добавлена запись в ${category}.yml: ${title}`);
+        res.send({ status: "success", message: "Запись добавлена в YAML!" });
 
     } catch (err) {
         console.error("❌ Ошибка:", err);
         res.status(500).send({ status: "error", message: err.message });
     }
-});
+}); 
+
 
 // --- МАРШРУТ: ЗАКАЗЫ (БЕЗ ИЗМЕНЕНИЙ) ---
 app.post("/api/order", async (req, res) => {
@@ -72,7 +66,9 @@ app.post("/api/order", async (req, res) => {
         res.send({ status: "success" });
     } catch (e) { res.status(500).send({ status: "error" }); }
 });
-
+// Заказы и Чат (оставляем как есть)
+app.post("/api/order", async (req, res) => { /* твоя логика axios в GitHub */ res.send({status:"ok"}); });
+app.listen(PORT, () => console.log(`🚀 Сервер на порту ${PORT}. Путь к сайту: ${ART_PROJECT_PATH}`));
 app.listen(PORT, () => {
     console.log(`🚀 Сервер Lexi на порту ${PORT}`);
     console.log(`📂 Работаю с папкой: ${ART_PROJECT_PATH}`);
