@@ -1,75 +1,62 @@
-const WebSocket = require("ws");
 const express = require("express");
 const bodyParser = require("body-parser");
 const cors = require("cors");
-const axios = require("axios");
 const fs = require('fs');
 const path = require('path');
 
 const PORT = 8081;
-const ART_PROJECT_PATH = 'C:\\Users\\Андреи\\art'; 
+const ART_PROJECT_PATH = 'C:\\Users\\Андреи\\art'; // Путь к локальному репозиторию сайта
 
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
-// --- МАРШРУТ: ПРОСТАЯ ЗАПИСЬ В YAML ---
-app.post("/api/product", async (req, res) => {
-    const { title, price, category, imagePath, description } = req.body;
+// --- МАРШРУТ АДМИНКИ: ЗАПИСЬ В YAML ПО СТРУКТУРЕ ---
+app.post("/api/product", (req, res) => {
+    const { category, title, price, imageName, description } = req.body;
     
     try {
+        // 1. Путь к файлу данных (согласно Дереву: _data/merch/...) [cite: 1]
         const yamlFilePath = path.join(ART_PROJECT_PATH, '_data', 'merch', `${category}.yml`);
 
         if (!fs.existsSync(yamlFilePath)) {
-            return res.status(404).send({ status: "error", message: `Файл ${category}.yml не найден` });
+            return res.status(404).json({ error: `Файл ${category}.yml не найден в _data/merch/` });
         }
 
-        // Генерация slug
+        // 2. Уникальный ID
         const slug = `item_${Date.now().toString().slice(-6)}`;
-        
-        // Формируем блок СТРОГО по твоему образцу (отступы важны!)
-        const newEntry = `  - slug: ${slug}
+
+        // 3. Формируем путь к изображению (согласно Дереву: assets/images/[категория]/) 
+        const imagePath = `/assets/images/${category}/${imageName}`;
+
+        // 4. Формируем блок данных (YAML-формат)
+        const newEntry = `  - slug: "${slug}"
     title: "${title}"
     price: "${price}"
-    image: ${imagePath}
-    description: ${description || ''}\n`;
+    image: "${imagePath}"
+    description: "${description || ''}"\n`;
 
-        let fileContent = fs.readFileSync(yamlFilePath, 'utf8');
-
-        // Вставляем сразу под "merch:"
-        if (fileContent.includes('merch:')) {
-            fileContent = fileContent.replace('merch:', `merch:\n${newEntry}`);
+        // 5. Читаем и дополняем файл
+        let content = fs.readFileSync(yamlFilePath, 'utf8');
+        
+        // Вставляем новую запись сразу после "merch:"
+        if (content.includes('merch:')) {
+            content = content.replace('merch:', `merch:\n${newEntry}`);
         } else {
-            fileContent = `merch:\n${newEntry}${fileContent}`;
+            content = `merch:\n${newEntry}${content}`;
         }
 
-        fs.writeFileSync(yamlFilePath, fileContent, 'utf8');
-
-        console.log(`✅ Добавлена запись в ${category}.yml: ${title}`);
-        res.send({ status: "success", message: "Запись добавлена в YAML!" });
+        fs.writeFileSync(yamlFilePath, content, 'utf8');
+        console.log(`✅ Товар "${title}" добавлен в ${category}.yml. Путь фото: ${imagePath}`);
+        res.json({ status: "success", message: "Товар успешно внесен в локальный YAML!" });
 
     } catch (err) {
         console.error("❌ Ошибка:", err);
-        res.status(500).send({ status: "error", message: err.message });
+        res.status(500).json({ error: err.message });
     }
-}); 
-
-
-// --- МАРШРУТ: ЗАКАЗЫ (БЕЗ ИЗМЕНЕНИЙ) ---
-app.post("/api/order", async (req, res) => {
-    try {
-        const fileName = `_data/orders/${Date.now()}.json`;
-        const contentBase64 = Buffer.from(JSON.stringify(req.body, null, 2)).toString('base64');
-        await axios.put(`https://api.github.com/repos/${REPO_ORDERS}/contents/${fileName}`, {
-            message: "New order", content: contentBase64, branch: BRANCH
-        }, { headers: { Authorization: `token ${GITHUB_TOKEN}` } });
-        res.send({ status: "success" });
-    } catch (e) { res.status(500).send({ status: "error" }); }
 });
-// Заказы и Чат (оставляем как есть)
-app.post("/api/order", async (req, res) => { /* твоя логика axios в GitHub */ res.send({status:"ok"}); });
-app.listen(PORT, () => console.log(`🚀 Сервер на порту ${PORT}. Путь к сайту: ${ART_PROJECT_PATH}`));
+
 app.listen(PORT, () => {
-    console.log(`🚀 Сервер Lexi на порту ${PORT}`);
-    console.log(`📂 Работаю с папкой: ${ART_PROJECT_PATH}`);
+    console.log(`🚀 Сервер запущен на http://localhost:${PORT}`);
+    console.log(`📂 Рабочая директория: ${ART_PROJECT_PATH}`);
 });
