@@ -2,20 +2,29 @@ name: Run Stitch Intelligence
 
 on:
   schedule:
+    # Запуск каждый понедельник в 12:00 UTC (18:00 Алматы)
     - cron: '0 12 * * 1'
   workflow_dispatch:
+    # Позволяет запускать вручную из вкладки Actions
+
 jobs:
-  run-butcher:
+  run-pipeline:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout code
+        uses: actions/checkout@v3
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11' # Поставим стабильную свежую версию
-      - name: Install deps
-        run: pip install -r intelligence/requirements.txt
-      - name: Execute
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Execute Intelligence
         env:
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-        run: python intelligence/butcher.py
+        run: |
+          python intelligence/butcher.py
+          python intelligence/sorter.py
