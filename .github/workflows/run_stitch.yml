@@ -1,1 +1,19 @@
+name: Run Stitch Intelligence
+on:
+  workflow_dispatch: # Позволяет запускать кнопкой вручную
 
+jobs:
+  run-butcher:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - name: Install deps
+        run: pip install -r intelligence/requirements.txt
+      - name: Execute
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        run: python intelligence/butcher.py
