@@ -13,52 +13,57 @@ def get_gspread_client():
     return gspread.authorize(creds)
 
 def harvest_targets(query):
-    print(f"🕵️‍♂️ Бонд ищет потенциалов по запросу: {query}")
-    url = f"https://satu.kz/search?search_term={query}"
-    headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
+    print(f"🕵️‍♂️ Попытка взлома Satu по запросу: {query}")
+    # Используем мобильную версию сайта, её сложнее защитить от парсинга
+    url = f"https://satu.kz/search?search_term={query.replace(' ', '+')}"
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Linux; Android 10; SM-G981B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.162 Mobile Safari/537.36'
+    }
     
-    response = requests.get(url, headers=headers)
-    soup = BeautifulSoup(response.text, 'html.parser')
-    
-    leads = []
-    # Берем блоки компаний, которые реально что-то предлагают
-    for item in soup.select('div[data-qaid="product_block"]')[:7]: 
-        try:
-            name = item.select_one('a[data-qaid="product_name"]').text.strip()
-            link = "https://satu.kz" + item.select_one('a[data-qaid="product_name"]')['href']
-            desc = item.select_one('span[data-qaid="product_price"]').text.strip() if item.select_one('span[data-qaid="product_price"]') else "Цена не указана"
-            
-            # Формируем строку строго под наши новые столбцы A-F
-            leads.append([
-                name,           # A: Потенциал
-                "Новый",        # B: Статус
-                "Satu.kz",      # C: Площадка
-                link,           # D: Контакт/Ссылка
-                time.strftime("%d.%m.%Y"), # E: Дата захвата
-                f"Предложение: {desc}"      # F: Заметки
-            ])
-        except:
-            continue
-    return leads
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        print(f"📡 Статус ответа: {response.status_code}")
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # Печатаем кусок кода страницы для диагностики, если ничего не найдено
+        items = soup.select('div[data-qaid="product_block"]')
+        print(f"🔍 Найдено блоков на странице: {len(items)}")
+        
+        leads = []
+        for item in items[:5]:
+            try:
+                name_elem = item.select_one('a[data-qaid="product_name"]')
+                if not name_elem: continue
+                
+                name = name_elem.text.strip()
+                link = "https://satu.kz" + name_elem['href']
+                
+                leads.append([
+                    name, "Новый", "Satu.kz", link, 
+                    time.strftime("%d.%m.%Y"), "Авто-поиск"
+                ])
+                print(f"➕ Цель обнаружена: {name}")
+            except: continue
+        return leads
+    except Exception as e:
+        print(f"⚠️ Ошибка при запросе: {e}")
+        return []
 
 def main():
-    try:
-        client = get_gspread_client()
-        spreadsheet = client.open("STITCH_DATABASE_V1")
-        sheet = spreadsheet.worksheet("MEAT") # Теперь это лист для потенциалов
-        
-        # Целевые запросы для поиска клиентов (тех, кто заказывает вышивку)
-        queries = ["пошив чехлов алматы", "реставрация кожи алматы", "тюнинг салона"]
-        
-        for q in queries:
-            new_leads = harvest_targets(q)
-            if new_leads:
-                sheet.append_rows(new_leads)
-                print(f"✅ В папку 'MEAT' добавлено {len(new_leads)} потенциальных клиентов.")
-            time.sleep(3)
-            
-    except Exception as e:
-        print(f"❌ Ошибка в штабе: {e}")
+    client = get_gspread_client()
+    spreadsheet = client.open("STITCH_DATABASE_V1")
+    sheet = spreadsheet.worksheet("MEAT")
+    
+    queries = ["пошив чехлов алматы", "реставрация кожи"]
+    
+    for q in queries:
+        new_leads = harvest_targets(q)
+        if new_leads:
+            sheet.append_rows(new_leads)
+            print(f"🚀 Записано в таблицу: {len(new_leads)} строк")
+        else:
+            print(f"💨 Бонд вернулся ни с чем по запросу: {q}")
+        time.sleep(5)
 
 if __name__ == "__main__":
     main()
