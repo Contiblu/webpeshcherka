@@ -1,6 +1,10 @@
 name: Run Stitch Intelligence
 on:
-  workflow_dispatch: # Позволяет запускать кнопкой вручную
+schedule:
+    # 12:00 UTC = 18:00 Almaty (UTC+6)
+    # Смена начинается каждый понедельник вечером
+    - cron: '0 12 * * 1'
+  workflow_dispatch: # Кнопку "Пнуть вручную" оставляем на случай бессонницы
 
 jobs:
   run-butcher:
